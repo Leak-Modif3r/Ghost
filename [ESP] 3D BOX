@@ -54,6 +54,128 @@ local function GetCharacterBounds(character)
     local center = (minVec + maxVec) / 2
     local size = maxVec - minVec
     
+    size = size + Vector3.new(0.2, 0.2, 0.2)
+    
+    return CFrame.new(center), size
+end
+
+local function UpdateESP()
+    for player, esp in pairs(ESPs) do
+        if player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local boundsCF, boxSize = GetCharacterBounds(player.Character)
+            if not boundsCF then continue end
+            
+            local rootPos = boundsCF.Position
+            local vector, onScreen = Camera:WorldToViewportPoint(rootPos)
+            
+            if onScreen and vector.Z > 0 then
+                local distance = (Camera.CFrame.Position - rootPos).Magnitude
+                local thickness = math.clamp(20 / distance, 0.5, 1)
+                
+                local halfSize = boxSize / 2
+                local corners = {
+                    boundsCF * Vector3.new(halfSize.X, halfSize.Y, halfSize.Z),
+                    boundsCF * Vector3.new(halfSize.X, halfSize.Y, -halfSize.Z),
+                    boundsCF * Vector3.new(halfSize.X, -halfSize.Y, halfSize.Z),
+                    boundsCF * Vector3.new(halfSize.X, -halfSize.Y, -halfSize.Z),
+                    boundsCF * Vector3.new(-halfSize.X, halfSize.Y, halfSize.Z),
+                    boundsCF * Vector3.new(-halfSize.X, halfSize.Y, -halfSize.Z),
+                    boundsCF * Vector3.new(-halfSize.X, -halfSize.Y, halfSize.Z),
+                    boundsCF * Vector3.new(-halfSize.X, -halfSize.Y, -halfSize.Z)
+                }
+                
+                local projections = {}
+                local visibles = {}
+                local minX, maxX = math.huge, -math.huge
+                local minY, maxY = math.huge, -math.huge
+                
+                for i, worldPos in ipairs(corners) do
+                    local screenPos = Camera:WorldToViewportPoint(worldPos)
+                    projections[i] = Vector2.new(screenPos.X, screenPos.Y)
+                    visibles[i] = screenPos.Z > 0
+                    
+                    if visibles[i] then
+                        minX = math.min(minX, screenPos.X)
+                        maxX = math.max(maxX, screenPos.X)
+                        minY = math.min(minY, screenPos.Y)
+                        maxY = math.max(maxY, screenPos.Y)
+                    end
+                end
+                
+                local edges = {
+                    {1, 2}, {1, 3}, {1, 5},
+                    {2, 4}, {2, 6},
+                    {3, 4}, {3, 7},
+                    {4, 8},
+                    {5, 6}, {5, 7},
+                    {6, 8},
+                    {7, 8}
+                }
+                
+                local lineIndex = 1
+                for _, edge in ipairs(edges) do
+                    local p1, p2 = edge[1], edge[2]
+                    if visibles[p1] and visibles[p2] then
+                        esp.Lines[lineIndex].From = projections[p1]
+                        esp.Lines[lineIndex].To = projections[p2]
+                        esp.Lines[lineIndex].Thickness = thickness
+                        esp.Lines[lineIndex].Visible = true
+                        lineIndex = lineIndex + 1
+                    end
+                end
+                
+                for i = lineIndex, 12 do
+                    esp.Lines[i].Visible = false
+                end
+                
+            else
+                for i = 1, 12 do
+                    esp.Lines[i].Visible = false
+                end
+            end
+        else
+            for i = 1, 12 do
+                esp.Lines[i].Visible = false
+            end
+        end
+    end
+end
+
+for _, player in pairs(Players:GetPlayers()) do
+    CreateESP(player)
+end
+
+Players.PlayerAdded:Connect(CreateESP)
+
+Players.PlayerRemoving:Connect(function(player)
+    if ESPs[player] then
+        for _, line in ipairs(ESPs[player].Lines) do
+            line:Remove()
+        end
+        ESPs[player] = nil
+    end
+end)
+
+RunService.RenderStepped:Connect(UpdateESP)                            math.min(minVec.X, corner.X),
+                            math.min(minVec.Y, corner.Y),
+                            math.min(minVec.Z, corner.Z)
+                        )
+                        maxVec = Vector3.new(
+                            math.max(maxVec.X, corner.X),
+                            math.max(maxVec.Y, corner.Y),
+                            math.max(maxVec.Z, corner.Z)
+                        )
+                    end
+                end
+            end
+        end
+    end
+    
+    if minVec.X == math.huge then return nil end
+    
+    local center = (minVec + maxVec) / 2
+    local size = maxVec - minVec
+    
     size = size + Vector3.new(0.5, 0.5, 0.5)
     
     return CFrame.new(center), size
